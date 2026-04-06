@@ -1,0 +1,72 @@
+<script>
+    // --- 1. Theme Logic ---
+    const toggleBtn = document.getElementById('theme-toggle');
+    const html = document.documentElement;
+    toggleBtn.addEventListener('click', () => {
+        html.classList.toggle('dark');
+        localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+    });
+
+    // --- 2. YouTube ID Extractor ---
+    function extractVideoID(url) {
+        const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+        const match = url.match(regex);
+        return match ? match[1] : null;
+    }
+
+    // --- 3. Functional Downloader Logic ---
+    document.getElementById('downloaderForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const urlInput = document.getElementById('videoUrl').value;
+        const format = document.getElementById('format').value;
+        const quality = document.getElementById('quality').value;
+        const statusEl = document.getElementById('status');
+        const submitBtn = document.getElementById('submitBtn');
+
+        if (!extractVideoID(urlInput)) {
+            statusEl.innerText = "Error: Please enter a valid YouTube link.";
+            statusEl.className = 'error';
+            return;
+        }
+
+        statusEl.innerText = "Processing video... please wait.";
+        statusEl.className = '';
+        submitBtn.disabled = true;
+
+        try {
+            // Using a public Cobalt API instance
+            const response = await fetch("https://api.cobalt.tools/api/json", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify({
+                    url: urlInput,
+                    videoQuality: quality,
+                    downloadMode: format === 'mp3' ? 'audio' : 'video',
+                    filenameStyle: "pretty"
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.status === "stream" || data.status === "redirect") {
+                statusEl.innerText = "Download starting!";
+                statusEl.className = "success";
+                
+                // Open the download link in a new tab
+                window.location.href = data.url;
+            } else {
+                statusEl.innerText = "Error: " + (data.text || "Could not process video.");
+                statusEl.className = "error";
+            }
+        } catch (error) {
+            statusEl.innerText = "Server Error: The free API might be overloaded. Try again in a minute.";
+            statusEl.className = "error";
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+</script>
