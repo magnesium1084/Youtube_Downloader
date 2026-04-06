@@ -1,72 +1,248 @@
-<script>
-    // --- 1. Theme Logic ---
-    const toggleBtn = document.getElementById('theme-toggle');
-    const html = document.documentElement;
-    toggleBtn.addEventListener('click', () => {
-        html.classList.toggle('dark');
-        localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
-    });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>magnesium | downloader</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at center, #1a1a1a 0%, #0a0a0a 100%);
+            color: #e0e0e0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
 
-    // --- 2. YouTube ID Extractor ---
-    function extractVideoID(url) {
-        const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
-        const match = url.match(regex);
-        return match ? match[1] : null;
-    }
+        .menu {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+            align-items: center;
+            background: #222;
+            padding: 2rem;
+            border-radius: 14px;
+            box-shadow: 0 4px 32px #000;
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+            border: 1px solid #333;
+        }
 
-    // --- 3. Functional Downloader Logic ---
-    document.getElementById('downloaderForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
+        h2 { margin: 0; letter-spacing: 3px; color: #fff; font-size: 1.2em; }
+
+        input {
+            width: 100%;
+            padding: 1rem;
+            background: #111;
+            border: 1px solid #444;
+            border-radius: 8px;
+            color: #fff;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        /* Preview Card Styling */
+        #previewCard {
+            width: 100%;
+            background: #1a1a1a;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #444;
+            margin-top: 10px;
+        }
+
+        .video-embed {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            border: none;
+            background: #000;
+        }
+
+        .video-info {
+            padding: 15px;
+            text-align: left;
+        }
+
+        .video-title {
+            font-weight: bold;
+            font-size: 1em;
+            margin-bottom: 5px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .video-meta {
+            font-size: 0.85em;
+            color: #888;
+        }
+
+        .controls {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        select, .action-btn {
+            width: 100%;
+            padding: 1rem;
+            background: #444;
+            color: #e0e0e0;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: bold;
+        }
+
+        select { background: #333; border: 1px solid #444; font-weight: normal; }
+
+        .action-btn:hover:not(:disabled) { background: #617f87; color: #fff; }
+        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #status { font-size: 0.85em; color: #888; margin: 10px 0; }
         
-        const urlInput = document.getElementById('videoUrl').value;
-        const format = document.getElementById('format').value;
-        const quality = document.getElementById('quality').value;
-        const statusEl = document.getElementById('status');
-        const submitBtn = document.getElementById('submitBtn');
+        .hidden { display: none; }
 
-        if (!extractVideoID(urlInput)) {
-            statusEl.innerText = "Error: Please enter a valid YouTube link.";
-            statusEl.className = 'error';
-            return;
+        .back-link { color: #666; text-decoration: none; font-size: 0.8em; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+
+    <div class="menu">
+        <h2>DOWNLOADER</h2>
+        
+        <input type="text" id="videoUrl" placeholder="Paste YouTube link...">
+        
+        <div class="controls">
+            <button id="analyzeBtn" class="action-btn">ANALYZE VIDEO</button>
+
+            <div id="previewCard" class="hidden">
+                <iframe id="embed" class="video-embed" src="" allowfullscreen></iframe>
+                <div class="video-info">
+                    <div id="vTitle" class="video-title">Loading Title...</div>
+                    <div class="video-meta">
+                        By <span id="vAuthor">Author</span> • <span id="vDuration">0:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="downloadSection" class="hidden">
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <select id="format">
+                        <option value="mp4">MP4</option>
+                        <option value="mp3">MP3</option>
+                    </select>
+                    <select id="quality">
+                        <option value="2160" selected>2160p (4K)</option>
+                        <option value="1440">1440p (2K)</option>
+                        <option value="1080">1080p</option>
+                        <option value="720">720p</option>
+                        <option value="480">480p</option>
+                        <option value="360">360p</option>
+                        <option value="144">144p</option>
+                    </select>
+                </div>
+                <button id="dlBtn" class="action-btn" style="background: #2e7d32;">DOWNLOAD BEST QUALITY</button>
+            </div>
+        </div>
+        
+        <div id="status"></div>
+        <a href="https://magnesium1084.github.io/" class="back-link">← Back to Menu</a>
+    </div>
+
+    <script>
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const dlBtn = document.getElementById('dlBtn');
+        const downloadSection = document.getElementById('downloadSection');
+        const previewCard = document.getElementById('previewCard');
+        const status = document.getElementById('status');
+        const urlInput = document.getElementById('videoUrl');
+
+        function formatDuration(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
         }
 
-        statusEl.innerText = "Processing video... please wait.";
-        statusEl.className = '';
-        submitBtn.disabled = true;
+        analyzeBtn.addEventListener('click', async () => {
+            const url = urlInput.value.trim();
+            if(!url) return status.innerText = "Enter a URL first.";
 
-        try {
-            // Using a public Cobalt API instance
-            const response = await fetch("https://api.cobalt.tools/api/json", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                },
-                body: JSON.stringify({
-                    url: urlInput,
-                    videoQuality: quality,
-                    downloadMode: format === 'mp3' ? 'audio' : 'video',
-                    filenameStyle: "pretty"
-                })
-            });
+            // Extract ID for Embed
+            const videoId = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=|\/sanday\?v=|\/playlist\?list=|\/search\?query=))([\w-]{11})/);
+            
+            analyzeBtn.disabled = true;
+            status.innerText = "Fetching video details...";
 
-            const data = await response.json();
+            try {
+                const response = await fetch("https://api.cobalt.tools/api/json", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    body: JSON.stringify({ url: url, isMetadataOnly: true })
+                });
 
-            if (data.status === "stream" || data.status === "redirect") {
-                statusEl.innerText = "Download starting!";
-                statusEl.className = "success";
+                const data = await response.json();
+
+                // Show the card
+                previewCard.classList.remove('hidden');
+                downloadSection.classList.remove('hidden');
+                analyzeBtn.classList.add('hidden');
+
+                // Set Embed and Info
+                if(videoId) document.getElementById('embed').src = `https://www.youtube-nocookie.com/embed/${videoId[1]}`;
+                document.getElementById('vTitle').innerText = data.metadata.title || "Unknown Title";
+                document.getElementById('vAuthor').innerText = data.metadata.author || "Unknown Artist";
+                document.getElementById('vDuration').innerText = data.metadata.duration ? formatDuration(data.metadata.duration) : "N/A";
                 
-                // Open the download link in a new tab
-                window.location.href = data.url;
-            } else {
-                statusEl.innerText = "Error: " + (data.text || "Could not process video.");
-                statusEl.className = "error";
+                status.innerText = "Ready!";
+            } catch (err) {
+                status.innerText = "Metadata restricted, but you can still try downloading.";
+                downloadSection.classList.remove('hidden');
+                analyzeBtn.classList.add('hidden');
             }
-        } catch (error) {
-            statusEl.innerText = "Server Error: The free API might be overloaded. Try again in a minute.";
-            statusEl.className = "error";
-        } finally {
-            submitBtn.disabled = false;
-        }
-    });
-</script>
+        });
+
+        dlBtn.addEventListener('click', async () => {
+            const url = urlInput.value.trim();
+            const format = document.getElementById('format').value;
+            const quality = document.getElementById('quality').value;
+
+            dlBtn.disabled = true;
+            status.innerText = "Requesting download link...";
+
+            try {
+                const response = await fetch("https://api.cobalt.tools/api/json", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    body: JSON.stringify({
+                        url: url,
+                        videoQuality: quality,
+                        downloadMode: format === 'mp3' ? 'audio' : 'video'
+                    })
+                });
+
+                const data = await response.json();
+                if (data.url) {
+                    window.location.href = data.url;
+                    status.innerText = "Download started!";
+                } else {
+                    status.innerText = "Quality not available.";
+                }
+            } catch (err) {
+                status.innerText = "API Busy. Try again later.";
+            } finally {
+                dlBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
